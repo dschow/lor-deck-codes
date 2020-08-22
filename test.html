@@ -1,0 +1,239 @@
+<html>
+<head>
+</head>
+<body>
+<a href="?code=CEAQEAIDB4XAEBIBAMERGFZGFMEACBJEE4UCWMJSGU4AEBABAMBA4KJXAQAQKAI3EM3A">Death and Spiders</a><br/>
+<a href="?code=CEBACAIADIAQCAIWAIDACAJEE4XDCMRVA4AQAAYGBEFQYERAAIBQCAAHCQWAKAIBCQNCAIRJ">Buff and Tuff</a><br/>
+<br/>
+<script type="text/javascript" src="cards.js"></script>
+<script>
+
+function getParameterByName(name, url) {
+    if (!url) url = window.location.href;
+    name = name.replace(/[\[\]]/g, '\\$&');
+    var regex = new RegExp('[?&]' + name + '(=([^&#]*)|&|#|$)'),
+        results = regex.exec(url);
+    if (!results) return null;
+    if (!results[2]) return '';
+    return decodeURIComponent(results[2].replace(/\+/g, ' '));
+}
+
+var DeckCode = getParameterByName("code");
+
+const MAX_KNOWN_VERSION = 1;
+
+const DIGITS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+const MASK = DIGITS.length - 1;
+const SHIFT = numberOfTrailingZeros(DIGITS.length);
+const CHAR_MAP = [];
+const IntIdentifierToFactionCode = [];
+const SEPARATOR = "-";
+
+IntIdentifierToFactionCode[0] = "DE";
+IntIdentifierToFactionCode[1] = "FR";
+IntIdentifierToFactionCode[2] = "IO";
+IntIdentifierToFactionCode[3] = "NX";
+IntIdentifierToFactionCode[4] = "PZ";
+IntIdentifierToFactionCode[5] = "SI";
+IntIdentifierToFactionCode[6] = "BW";
+IntIdentifierToFactionCode[7] = "SH";
+IntIdentifierToFactionCode[8] = "VD";
+IntIdentifierToFactionCode[9] = "MT";
+IntIdentifierToFactionCode[10] = "BC";
+
+for (var i=0; i < DIGITS.length; i++) {
+  CHAR_MAP[DIGITS[i]] = i;
+}
+
+function createBinaryString (nMask) {
+  // nMask must be between -2147483648 and 2147483647
+  for (var nFlag = 0, nShifted = nMask, sMask = ""; nFlag < 32;
+       nFlag++, sMask += String(nShifted >>> 31), nShifted <<= 1);
+  return sMask;
+}
+
+function numberOfTrailingZeros(i) {
+  var y;
+  if (i == 0) return 32;
+  var n = 31;
+
+  y = i << 16;
+  if (y != 0) {
+    n = n - 16; i = y;
+  }
+
+  y = i << 8;
+  if (y != 0) {
+    n = n - 8; i = y;
+  }
+
+  y = i << 4;
+  if (y != 0) {
+    n = n - 4; i = y;
+  }
+
+  y = i << 2;
+  if (y != 0) {
+    n = n - 2; i = y;
+  }
+
+  return n - ((i << 1) >> 31);
+}
+
+function decode(encoded) {
+  // remove whitespace and separators
+  encoded = encoded.trim().replace(SEPARATOR, "");
+
+  // remove padding
+  encoded = encoded.replace(/[=]*$/, "");
+
+  // all to uppercase
+  encoded = encoded.toUpperCase();
+
+  var encodedLength = encoded.length;
+  if (encodedLength == 0) {
+    return 0;
+  }
+
+  var outLength = Math.floor(encodedLength * SHIFT / 8);
+  var result = [];
+  var buffer = 0;
+  var next = 0;
+  var bitsLeft = 0;
+
+  for (var i = 0; i < encoded.length; i++) {
+    var c = encoded.charAt(i);
+    if (CHAR_MAP[c] == undefined) {
+      console.log("Illegal character");
+    }
+    buffer <<= SHIFT;
+    buffer |= CHAR_MAP[c] & MASK;
+    bitsLeft += SHIFT;
+
+    if (bitsLeft >= 8) {
+      result[next++] = buffer >> (bitsLeft - 8);
+      bitsLeft -= 8;
+    }
+  }
+
+  return result;
+}
+
+const AllButMSB = 0x7f;
+const JustMSB = 0x80;
+
+function popVarInt(bytes) {
+  result = 0;
+  currentShift = 0;
+  bytesPopped = 0;
+
+  for (var i=0; i<bytes.length; i++) {
+    bytesPopped++;
+    var current = bytes[i] & AllButMSB;
+    result |= current << currentShift;
+
+    if ((bytes[i] & JustMSB) != JustMSB) {
+      bytes.splice(0, bytesPopped);
+      return Math.floor(result);
+    }
+
+    currentShift += 7;
+  }
+
+  console.log("Byte array did not contain valid VarInts.");
+}
+
+function getCard(code) {
+  for (var i=0; i<cards.length; i++) {
+    var card = cards[i];
+    if (card["cardCode"] == code) {
+      return card;
+    }
+  }
+}
+
+var decoded = decode(DeckCode);
+
+console.log(decoded);
+
+var format = decoded[0] >> 4;
+var version = decoded[0] & 0xF;
+// remove first element from decoded array
+decoded.splice(0,1);
+
+document.write("format: "+format+"<br/>");
+document.write("version: "+version+"<br/><br/>");
+
+console.log("format: "+format);
+console.log("version: "+version);
+
+if (version > MAX_KNOWN_VERSION) {
+  console.log("The provided code requires a higher version of this library; please update.");
+}
+
+console.log(decoded);
+
+console.log(decoded.length);
+
+var decklist = [];
+
+for (var i=3; i>0; i--) {
+  var numGroupOfs = popVarInt(decoded);
+  console.log("numGroupOfs: "+numGroupOfs);
+
+  for (var j=0; j<numGroupOfs; j++) {
+    var numOfsInThisGroup = popVarInt(decoded);
+    console.log("numOfsInThisGroup: "+numOfsInThisGroup);
+
+    var set = popVarInt(decoded)+'';
+    var faction = popVarInt(decoded)+'';
+
+    for (var k=0; k<numOfsInThisGroup; k++) {
+      var card = popVarInt(decoded)+'';
+
+      var setStr = set.padStart(2, '0');
+      var factionStr = IntIdentifierToFactionCode[faction];
+      var cardStr = card.padStart(3, '0');
+
+      var cardObj = getCard(setStr+factionStr+cardStr);
+      if (cardObj) {
+        if (decklist[cardObj["cost"]] == undefined) {
+          decklist[cardObj["cost"]] = [];
+        }
+        decklist[cardObj["cost"]].push({"card": cardObj, "count": i});
+
+        console.log(cardObj["name"]+" x"+i);
+      } else {
+        document.write("card not found: "+setStr+factionStr+cardStr+"<br/>");
+        console.log("card not found: "+setStr+factionStr+cardStr);
+      }
+    }
+  }
+}
+
+console.log(decklist);
+
+function decksort(a, b) {
+  if (a["card"]["name"] < b["card"]["name"]) {
+    return -1;
+  }
+  if (a["card"]["name"] > b["card"]["name"]) {
+    return 1;
+  }
+  return 0;
+}
+
+decklist.forEach(function(entry) {
+  entry.sort(decksort);
+  for (var i=0; i<entry.length; i++) {
+    document.write("("+entry[i]["card"]["cost"]+") "+entry[i]["card"]["name"]+" x"+entry[i]["count"]+"<br/>");
+  }
+});
+
+console.log(decklist);
+
+//console.log(decoded.length);
+
+</script>
+</body>
+</html>
